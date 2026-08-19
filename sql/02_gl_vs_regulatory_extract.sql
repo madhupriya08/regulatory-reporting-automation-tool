@@ -26,8 +26,19 @@
 -- standard way: the LEFT JOIN in one direction, UNION'd with the LEFT JOIN in
 -- the other direction restricted to rows that found no match. The second
 -- branch contributes only the extract-only rows, so the union is the full
--- outer join. UNION rather than UNION ALL is belt-and-braces - the anti-join
--- predicate already guarantees the branches are disjoint.
+-- outer join.
+--
+-- Being precise about which part does the work, because it is easy to state
+-- this wrongly: with UNION the set semantics would collapse re-emitted matched
+-- rows on their own, so the anti-join predicate is not what makes the result
+-- correct HERE. It is kept for two reasons worth more than the line it costs.
+-- It states the intent - branch 2 exists to contribute extract-only rows and
+-- nothing else - and it is what keeps the pattern correct if anyone swaps
+-- UNION for the cheaper UNION ALL to skip the dedup sort. Without it, that
+-- swap would silently double every matched account. The test suite pins this
+-- down by rewriting this file's UNION to UNION ALL and asserting the row count
+-- does not move, so the predicate is load-bearing under test even though UNION
+-- masks it at runtime.
 --
 -- This is the single largest readability cost of using SQLite here, and it is
 -- the piece the Snowflake version deletes outright.

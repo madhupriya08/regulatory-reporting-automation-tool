@@ -42,6 +42,7 @@ mean in production.
 from __future__ import annotations
 
 import sys
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -204,8 +205,16 @@ def build_general_ledger(rng: np.random.Generator) -> pd.DataFrame:
                         "entity": entity,
                         "product": product,
                         "quarter": quarter,
+                        # zlib.crc32, not hash(). Python salts hash() for str
+                        # per process unless PYTHONHASHSEED is pinned, so
+                        # hash() here made gl_account change on every run - the
+                        # CSVs would differ between two runs of a generator
+                        # whose whole contract is reproducibility, and the
+                        # committed answer key would stop describing the
+                        # committed data. crc32 is stable across processes,
+                        # platforms and Python versions.
                         "gl_account": f"GL-{PRODUCT_SCHEDULE[product].replace('.', '')}-"
-                                      f"{abs(hash((entity, product))) % 9000 + 1000}",
+                                      f"{zlib.crc32(f'{entity}|{product}'.encode()) % 9000 + 1000}",
                         "as_of_date": QUARTER_END[quarter],
                         "_gl_cents": gl_cents,
                         "_n_loans": n_loans,
