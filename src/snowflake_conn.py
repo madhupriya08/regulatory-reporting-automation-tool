@@ -16,6 +16,7 @@ variable NAMES appear in messages.
 from __future__ import annotations
 
 import os
+import sys
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -146,3 +147,24 @@ def connection() -> Iterator["object"]:
         yield conn
     finally:
         conn.close()
+
+
+def cli_main(entrypoint) -> int:
+    """Run a Snowflake CLI entrypoint, turning config errors into plain output.
+
+    A missing environment variable is an operator problem with a known remedy,
+    not a defect in this code, and printing 12 frames of Python internals above
+    the one line that matters actively buries the answer. SnowflakeConfigError
+    already carries a message naming exactly which variables are unset and how
+    to set them, so it is printed on its own and the process exits 1.
+
+    Only SnowflakeConfigError is swallowed. A genuine connection failure, a SQL
+    error or a row-count mismatch still raises with its full traceback, because
+    for those the traceback IS the useful information.
+    """
+    try:
+        entrypoint()
+    except SnowflakeConfigError as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 1
+    return 0
