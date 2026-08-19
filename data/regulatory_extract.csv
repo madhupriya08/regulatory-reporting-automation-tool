@@ -1,0 +1,61 @@
+entity,product,quarter,extract_balance,schedule_code,extract_run_date
+US Retail Bank,Mortgage,2025Q1,37974514.0,H.1,2025-04-08
+US Retail Bank,Mortgage,2025Q2,39379571.0,H.1,2025-07-09
+US Retail Bank,Auto Loan,2025Q1,2761746.0,H.2,2025-04-08
+US Retail Bank,Auto Loan,2025Q2,2863931.0,H.2,2025-07-09
+US Retail Bank,Credit Card,2025Q1,851227.0,D.1,2025-04-08
+US Retail Bank,Credit Card,2025Q2,882722.0,D.1,2025-07-09
+US Retail Bank,Personal Loan,2025Q1,1752447.08,H.2,2025-04-08
+US Retail Bank,Personal Loan,2025Q2,1595001.0,H.2,2025-07-09
+US Retail Bank,HELOC,2025Q1,8030070.92,H.1,2025-04-08
+US Retail Bank,HELOC,2025Q2,8549470.0,H.1,2025-07-09
+US Retail Bank,Small Business Loan,2025Q1,14505805.0,A.7,2025-04-08
+US Retail Bank,Small Business Loan,2025Q2,15042520.0,A.7,2025-07-09
+US Wealth Mgmt,Mortgage,2025Q1,25037947.19,H.1,2025-04-08
+US Wealth Mgmt,Mortgage,2025Q2,26548416.0,H.1,2025-07-09
+US Wealth Mgmt,Auto Loan,2025Q1,1611756.0,H.2,2025-04-08
+US Wealth Mgmt,Auto Loan,2025Q2,1671391.0,H.2,2025-07-09
+US Wealth Mgmt,Credit Card,2025Q1,296475.0,D.1,2025-04-08
+US Wealth Mgmt,Credit Card,2025Q2,307445.0,D.1,2025-07-09
+US Wealth Mgmt,Personal Loan,2025Q1,605021.0,H.2,2025-04-08
+US Wealth Mgmt,Personal Loan,2025Q2,627407.0,H.2,2025-07-09
+US Wealth Mgmt,HELOC,2025Q1,4068489.0,H.1,2025-04-08
+US Wealth Mgmt,HELOC,2025Q2,4219024.0,H.1,2025-07-09
+US Wealth Mgmt,Small Business Loan,2025Q1,3117349.0,A.7,2025-04-08
+US Wealth Mgmt,Small Business Loan,2025Q2,3232691.0,A.7,2025-07-09
+US Card Services,Mortgage,2025Q1,28079684.0,H.1,2025-04-08
+US Card Services,Mortgage,2025Q2,29118632.0,H.1,2025-07-09
+US Card Services,Auto Loan,2025Q1,2744599.0,H.2,2025-04-08
+US Card Services,Auto Loan,2025Q2,2735149.19,H.2,2025-07-09
+US Card Services,Credit Card,2025Q1,676671.0,D.1,2025-04-08
+US Card Services,Credit Card,2025Q2,701708.0,D.1,2025-07-09
+US Card Services,Personal Loan,2025Q1,1301605.0,H.2,2025-04-08
+US Card Services,Personal Loan,2025Q2,1349764.0,H.2,2025-07-09
+US Card Services,HELOC,2025Q1,5056319.0,H.1,2025-04-08
+US Card Services,HELOC,2025Q2,5243402.0,H.1,2025-07-09
+US Card Services,Small Business Loan,2025Q1,8908939.0,A.7,2025-04-08
+US Card Services,Small Business Loan,2025Q2,9349569.81,A.7,2025-07-09
+US Small Business Bank,Mortgage,2025Q1,15505265.0,H.1,2025-04-08
+US Small Business Bank,Mortgage,2025Q2,16078960.0,H.1,2025-07-09
+US Small Business Bank,Auto Loan,2025Q1,1399661.0,H.2,2025-04-08
+US Small Business Bank,Auto Loan,2025Q2,1431128.71,H.2,2025-07-09
+US Small Business Bank,Credit Card,2025Q1,328105.0,D.1,2025-04-08
+US Small Business Bank,Credit Card,2025Q2,340245.0,D.1,2025-07-09
+US Small Business Bank,Personal Loan,2025Q1,810449.0,H.2,2025-04-08
+US Small Business Bank,Personal Loan,2025Q2,840436.0,H.2,2025-07-09
+US Small Business Bank,HELOC,2025Q1,3059754.0,H.1,2025-04-08
+US Small Business Bank,HELOC,2025Q2,3172964.0,H.1,2025-07-09
+US Small Business Bank,Small Business Loan,2025Q1,3987903.0,A.7,2025-04-08
+US Small Business Bank,Small Business Loan,2025Q2,4135456.0,A.7,2025-07-09
+US Private Bank,Mortgage,2025Q1,33116485.0,H.1,2025-04-08
+US Private Bank,Mortgage,2025Q2,33208515.76,H.1,2025-07-09
+US Private Bank,Auto Loan,2025Q1,1531204.0,H.2,2025-04-08
+US Private Bank,Auto Loan,2025Q2,1587858.0,H.2,2025-07-09
+US Private Bank,Credit Card,2025Q1,331723.0,D.1,2025-04-08
+US Private Bank,Credit Card,2025Q2,343997.0,D.1,2025-07-09
+US Private Bank,Personal Loan,2025Q1,709466.0,H.2,2025-04-08
+US Private Bank,Personal Loan,2025Q2,735716.0,H.2,2025-07-09
+US Private Bank,HELOC,2025Q1,2982587.0,H.1,2025-04-08
+US Private Bank,HELOC,2025Q2,3092943.0,H.1,2025-07-09
+US Private Bank,Small Business Loan,2025Q1,6212934.0,A.7,2025-04-08
+US Private Bank,Small Business Loan,2025Q2,6442813.0,A.7,2025-07-09
