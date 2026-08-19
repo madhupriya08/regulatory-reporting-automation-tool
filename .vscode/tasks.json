@@ -1,0 +1,71 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1 \u00b7 Generate source data",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} src/generate_data.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "2 \u00b7 Build SQLite database",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} src/build_database.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "3 \u00b7 Run reconciliations (SQLite)",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} src/run_queries.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "4 \u00b7 Run tests",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} -m pytest tests/ -q",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Full pipeline (1 \u2192 2 \u2192 3 \u2192 4)",
+      "detail": "Generate, load, reconcile, then grade against the answer key.",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "1 \u00b7 Generate source data",
+        "2 \u00b7 Build SQLite database",
+        "3 \u00b7 Run reconciliations (SQLite)",
+        "4 \u00b7 Run tests"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Show SQLite schema",
+      "detail": "Print table DDL, indexes and row counts without leaving the editor.",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} src/show_schema.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
