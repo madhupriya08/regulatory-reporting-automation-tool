@@ -372,7 +372,7 @@ two materiality rules, eventually.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q          # 56 passed, 5 skipped without Snowflake
+python -m pytest tests/ -q          # 60 passed, 5 skipped without Snowflake
 ```
 
 The distinction the suite exists to enforce: **"the query ran" is not the same
@@ -393,6 +393,7 @@ separately, because those mean opposite things to whoever has to fix them.
 | Trend agreement | The governance view and the operational view cannot drift apart |
 | Reproducibility | Regenerating in a subprocess under a different `PYTHONHASHSEED` yields byte-identical CSVs |
 | Snowflake (offline) | Credential handling, backend selection, file resolution, casing, dialect equivalence |
+| Snowflake CLI | A missing variable exits 1 with the full list and **no traceback**; a bogus password never reaches stdout or stderr |
 | Snowflake (live) | Real row counts, lowercase columns, and the same 14 breaks on the warehouse |
 
 The suite was itself checked by **mutation testing**: flipping the
