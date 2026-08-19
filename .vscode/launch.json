@@ -1,0 +1,71 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "1 · Generate source data",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/generate_data.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "2 · Build SQLite database",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/build_database.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "3 · Run reconciliations (SQLite)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/run_queries.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "5 · Dashboard (SQLite)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "src/dashboard.py"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "5b · Dashboard (live Snowflake)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "src/dashboard.py"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": { "USE_SNOWFLAKE": "true" }
+    },
+    {
+      "name": "S1 · Build Snowflake tables",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/build_snowflake.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "S2 · Run reconciliations (Snowflake)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/run_queries_snowflake.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

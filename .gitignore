@@ -20,5 +20,17 @@ output/*.csv
 secrets.toml
 .streamlit/secrets.toml
 
+# IDE. Run configurations ARE committed - they are the point of checking these
+# folders in at all, and they let anyone open the project and hit Run. Everything
+# else in .idea/ and .vscode/ is per-user state (window layout, local interpreter
+# paths, caches) that would produce a churning diff on every commit.
+.idea/*
+!.idea/runConfigurations/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+
 # OS noise
 .DS_Store

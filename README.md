@@ -97,6 +97,63 @@ python -m pytest tests/ -q       # grade the SQL against the answer key
 streamlit run src/dashboard.py   # break report
 ```
 
+To inspect the database without leaving the terminal:
+
+```bash
+python src/show_schema.py        # DDL, indexes, row counts, sample rows
+```
+
+---
+
+## Running it from an IDE
+
+Run configurations are checked in for both editors, so the project can be opened
+and run without setting anything up.
+
+**VS Code** — open the repo root, then `Ctrl/Cmd+Shift+P` -> *Python: Create
+Environment* -> `Venv` -> tick `requirements.txt`.
+
+- **Run and Debug** panel lists every step: generate, build, reconcile, dashboard,
+  and the two Snowflake steps.
+- **Terminal -> Run Task** -> *Full pipeline (1 -> 2 -> 3 -> 4)* runs the whole
+  thing in sequence, ending with the test suite.
+- The **Testing** panel shows all 60 tests as a clickable tree.
+- Recommended extensions are prompted on first open. **SQLite Viewer** renders
+  `regulatory_reporting.db` - tables, columns, indexes - by clicking it in the
+  explorer.
+
+**PyCharm** — open the repo root and point the interpreter at a virtualenv built
+from `requirements.txt`. The run-configuration dropdown is pre-populated:
+
+| Configuration | Does |
+|---|---|
+| `0 · Full pipeline (1 → 2 → 3)` | Generate, load and reconcile in one click |
+| `1..3` | Each pipeline step individually |
+| `4 · Run tests` | pytest against `tests/` |
+| `5 · Dashboard (SQLite)` | Streamlit on the local backend |
+| `5b · Dashboard (live Snowflake)` | Same, with `USE_SNOWFLAKE=true` preset |
+| `6 · Show SQLite schema` | DDL, indexes, row counts, samples |
+| `S1`, `S2` | The Snowflake build and query steps |
+
+Two notes worth knowing:
+
+- The dashboard configurations run in **module mode** (`streamlit` +
+  `run src/dashboard.py`), not script mode. Executing `dashboard.py` as a plain
+  script produces Streamlit's "missing ScriptRunContext" warning and renders
+  nothing - the app has to be launched by the Streamlit runner.
+- `0 · Full pipeline` chains steps 1 and 2 as *before-launch* tasks rather than
+  using a Compound configuration, because PyCharm runs Compound targets in
+  **parallel** - which for a pipeline would load the database while the CSVs are
+  still being written.
+
+PyCharm's **Database** tool window (`+` -> *Data Source* -> *SQLite* ->
+`regulatory_reporting.db`) gives the richest schema browser, but it is
+**Professional-only**. On Community Edition use `python src/show_schema.py`, or
+[DB Browser for SQLite](https://sqlitebrowser.org).
+
+Only the run configurations are committed. Per-user IDE state - window layout,
+local interpreter paths, caches - stays gitignored.
+
 ---
 
 ## Why 0.5% materiality
@@ -472,6 +529,9 @@ sql/
   snowflake/
     02_gl_vs_regulatory_extract_snowflake.sql   native FULL OUTER JOIN
 
+.vscode/                        VS Code launch configs, tasks, extension hints
+.idea/runConfigurations/        PyCharm run configs (per-user state gitignored)
+
 src/
   generate_data.py              3 source systems + answer key
   build_database.py             SQLite loader (with indexes)
@@ -481,6 +541,7 @@ src/
   run_queries.py                SQLite runner
   run_queries_snowflake.py      Snowflake runner
   dashboard.py                  Streamlit break report (either backend)
+  show_schema.py                read-only schema dump for the local database
 
 tests/
   conftest.py                   fixtures: fresh DB built from committed CSVs
