@@ -1,0 +1,13 @@
+# Core data generation + reconciliation
+pandas>=2.0
+numpy>=1.24
+
+# Dashboard
+streamlit>=1.30
+plotly>=5.18
+
+# Tests
+pytest>=7.4
+
+# Live Snowflake backend (optional: the SQLite path runs without it)
+snowflake-connector-python>=3.6
