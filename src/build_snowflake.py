@@ -49,7 +49,12 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import TABLE_SOURCES  # noqa: E402
-from src.snowflake_conn import connection, describe_config  # noqa: E402
+from src.snowflake_conn import (  # noqa: E402
+    check_env,
+    cli_main,
+    connection,
+    describe_config,
+)
 
 SCHEMAS: dict[str, str] = {
     "general_ledger": """
@@ -178,6 +183,11 @@ def build() -> dict[str, int]:
 
 
 def main() -> None:
+    # Validate before printing anything: a run that announces "Building
+    # Snowflake tables with: NOT SET, NOT SET, NOT SET" and only then reports
+    # the problem has wasted the operator's first read of the output.
+    check_env()
+
     print("Building Snowflake tables with:")
     print(describe_config())
     print()
@@ -190,4 +200,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli_main(main))

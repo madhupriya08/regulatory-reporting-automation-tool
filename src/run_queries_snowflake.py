@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import OUTPUT_DIR  # noqa: E402
 from src.backends import QUERY_STEMS, resolve_query_path, run_snowflake  # noqa: E402
-from src.snowflake_conn import check_env, describe_config  # noqa: E402
+from src.snowflake_conn import check_env, cli_main, describe_config  # noqa: E402
 
 
 def run_all(output_dir: Path = OUTPUT_DIR) -> dict:
@@ -51,6 +51,9 @@ def run_all(output_dir: Path = OUTPUT_DIR) -> dict:
 
 
 def main() -> None:
+    # Same reason as the builder: validate before announcing.
+    check_env()
+
     print("Running reconciliations against Snowflake:")
     print(describe_config())
     print()
@@ -76,4 +79,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli_main(main))

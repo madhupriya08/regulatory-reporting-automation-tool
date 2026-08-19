@@ -379,3 +379,73 @@ def test_live_clean_accounts_reconcile_to_exactly_zero(answer_key):
 
     assert len(clean) == 46
     assert (clean["variance"].astype(float) == 0.0).all()
+
+
+# ===========================================================================
+# CLI behaviour on a misconfigured environment - no Snowflake account required
+# ===========================================================================
+@pytest.mark.parametrize(
+    "script", ["src/build_snowflake.py", "src/run_queries_snowflake.py"]
+)
+def test_cli_reports_missing_vars_without_a_traceback(script, monkeypatch):
+    """A missing credential must print the list, not 12 frames of internals.
+
+    This is an operator problem with a known remedy, not a defect in the code,
+    and a stack trace above the one line that matters actively buries the
+    answer. The first version of these scripts DID emit a traceback - the
+    helpful message was there, with a wall of contextlib and connector frames
+    printed after it.
+
+    Asserts three things: the exit status is a clean failure, every missing
+    variable is named, and the word Traceback appears nowhere. The last one is
+    the assertion that would have caught the original bug.
+    """
+    import subprocess
+
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in REQUIRED_ENV_VARS
+    }
+    env["PATH"] = os.environ.get("PATH", "")
+
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / script)],
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True,
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 1, "a config error should exit 1, not 0 or a crash code"
+    assert "Traceback" not in combined, (
+        f"{script} printed a stack trace for a configuration problem:\n{combined}"
+    )
+    for name in REQUIRED_ENV_VARS:
+        assert name in combined, f"{script} did not name {name}"
+    assert "export" in combined, "the message should show how to fix it"
+
+
+@pytest.mark.parametrize(
+    "script", ["src/build_snowflake.py", "src/run_queries_snowflake.py"]
+)
+def test_cli_never_prints_a_credential_value(script, monkeypatch):
+    """Even a fully-configured run must not echo the password.
+
+    The credentials here are deliberately bogus, so the run fails at connection
+    time rather than reaching Snowflake. That is the point: the failure path is
+    exactly where a careless implementation would dump the connection kwargs -
+    password included - into a log or a terminal someone screenshots.
+    """
+    import subprocess
+
+    env = dict(os.environ)
+    env.update({name: f"bogus-{name.lower()}" for name in REQUIRED_ENV_VARS})
+    env["SNOWFLAKE_PASSWORD"] = "correct-horse-battery-staple"
+
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / script)],
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=180,
+    )
+    combined = result.stdout + result.stderr
+
+    assert "correct-horse-battery-staple" not in combined, (
+        f"{script} leaked the password into its output"
+    )
