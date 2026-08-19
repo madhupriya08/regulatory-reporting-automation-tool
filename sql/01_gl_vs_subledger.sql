@@ -27,6 +27,14 @@
 -- The duplicate-loan-id count carried alongside is corroborating evidence,
 -- not the test itself: a replayed batch re-inserts the same loan_ids, so a
 -- positive variance sitting next to duplicated ids is a near-certain replay.
+--
+-- PORTABILITY NOTE: this file runs unchanged on both SQLite and Snowflake.
+-- Two things make that true and are easy to undo by accident. The CTE is named
+-- variance_calc rather than variance, because VARIANCE is a built-in aggregate
+-- in Snowflake and a bare CTE of that name invites the parser to resolve the
+-- wrong thing. And the outer SELECT lists its columns explicitly instead of
+-- using alias.*, so a reader can see the output contract without executing it
+-- and neither engine has to guess at expansion order.
 -- ===========================================================================
 
 WITH subledger_rollup AS (
@@ -43,7 +51,7 @@ WITH subledger_rollup AS (
     GROUP BY entity, product, quarter
 ),
 
-variance AS (
+variance_calc AS (
     -- LEFT JOIN from the GL, not an inner join: a GL account whose entire
     -- sub-ledger feed failed to arrive has NO rollup row at all, and an inner
     -- join would drop it silently. That is the worst possible failure - a
@@ -67,7 +75,14 @@ variance AS (
 
 flagged AS (
     SELECT
-        variance.*,
+        entity,
+        product,
+        quarter,
+        gl_balance,
+        sub_ledger_balance,
+        loan_count,
+        duplicate_loan_ids,
+        variance,
         ROUND(100.0 * variance / NULLIF(gl_balance, 0), 4) AS variance_pct,
         CASE
             -- A zero GL balance with a non-zero sub-ledger cannot be expressed
@@ -77,7 +92,7 @@ flagged AS (
             WHEN ABS(100.0 * variance / NULLIF(gl_balance, 0)) > 0.5 THEN 'BREAK'
             ELSE 'PASS'
         END AS status
-    FROM variance
+    FROM variance_calc
 )
 
 SELECT

@@ -1,6 +1,21 @@
 """Streamlit dashboard for the regulatory reconciliation break report.
 
-Run with:  streamlit run src/dashboard.py
+Run with:  streamlit run src/dashboard.py                 (SQLite, the default)
+           USE_SNOWFLAKE=true streamlit run src/dashboard.py   (live Snowflake)
+
+BACKEND AUTO-DETECTION
+The engine is chosen by the USE_SNOWFLAKE environment variable and by nothing
+else in this file. Every query goes through src/backends.py, which resolves the
+right SQL file for the active engine and lowercases the result columns, so
+there is not one branch on the backend anywhere below this docstring. Switching
+between local SQLite and a live warehouse takes an environment variable and no
+code change - which is the property that makes it safe to demo locally and run
+for real without maintaining two versions of the dashboard that drift.
+
+The casing detail matters more than it sounds: Snowflake returns ENTITY where
+SQLite returns entity, so every `frame["entity"]` below would raise KeyError on
+one of the two backends. backends.normalize_columns fixes it once at the
+boundary rather than scattering case handling through the UI code.
 
 The dashboard executes the reconciliation SQL live rather than reading the
 exported CSVs. A controller looking at a break report during a close needs to
@@ -17,7 +32,6 @@ Layout follows how the tie-out is actually worked:
 
 from __future__ import annotations
 
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -27,11 +41,8 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import (  # noqa: E402
-    MATERIALITY_THRESHOLD_PCT,
-    SQL_DIR,
-    SQLITE_DB_PATH,
-)
+from config import MATERIALITY_THRESHOLD_PCT  # noqa: E402
+from src.backends import backend_name, resolve_query_path, run_reconciliation  # noqa: E402
 
 st.set_page_config(page_title="Regulatory Reporting Reconciliation",
                    page_icon="📋", layout="wide")
@@ -55,22 +66,22 @@ ROOT_CAUSE_COLOURS = {
 # --------------------------------------------------------------------------
 # Data access
 # --------------------------------------------------------------------------
-@st.cache_data(show_spinner=False)
-def run_sql(filename: str) -> pd.DataFrame:
-    """Execute one reconciliation query file against SQLite.
+@st.cache_data(show_spinner="Running reconciliation...")
+def run_recon(stem: str, backend: str) -> pd.DataFrame:
+    """Execute one reconciliation on the active backend.
 
-    Cached because the three queries are re-run on every widget interaction
-    and the sub-ledger rollup is the expensive part. The cache is keyed on the
-    filename, so 'Refresh data' clearing it is the only way to pick up a
-    rebuilt database - which is the correct trade for a close-cycle tool where
-    the data changes on a schedule, not continuously.
+    Caching matters more here than it did on SQLite alone: on Snowflake every
+    uncached call is a warehouse round trip that costs real credits, and a
+    dashboard that re-queried on every checkbox toggle would be expensive as
+    well as slow.
+
+    `backend` is an argument purely so it forms part of the cache key. It is
+    never read in the body. Without it, flipping USE_SNOWFLAKE and restarting
+    would serve results the other engine produced - a silently wrong number on
+    a regulatory report, which is the worst kind of caching bug. Passing it
+    makes the two backends occupy separate cache entries by construction.
     """
-    if not SQLITE_DB_PATH.exists():
-        raise FileNotFoundError(
-            f"{SQLITE_DB_PATH} not found. Run `python src/build_database.py` first."
-        )
-    with sqlite3.connect(SQLITE_DB_PATH) as conn:
-        return pd.read_sql_query((SQL_DIR / filename).read_text(), conn)
+    return run_reconciliation(stem)
 
 
 def money(value: float) -> str:
@@ -91,12 +102,22 @@ st.caption(
     f"materiality threshold {MATERIALITY_THRESHOLD_PCT}% of GL balance"
 )
 
+BACKEND = backend_name()
+
 try:
-    subledger = run_sql("01_gl_vs_subledger.sql")
-    extract = run_sql("02_gl_vs_regulatory_extract.sql")
-    trend = run_sql("03_quarterly_break_trend.sql")
+    subledger = run_recon("01_gl_vs_subledger", BACKEND)
+    extract = run_recon("02_gl_vs_regulatory_extract", BACKEND)
+    trend = run_recon("03_quarterly_break_trend", BACKEND)
 except FileNotFoundError as exc:
     st.error(str(exc))
+    st.stop()
+except Exception as exc:  # noqa: BLE001
+    # SnowflakeConfigError lands here when USE_SNOWFLAKE is set but the
+    # credentials are not. Its message already names exactly which variables
+    # are missing, so it is rendered as-is: a raw traceback in the browser
+    # would bury that list and tells the operator nothing they can act on.
+    st.error(f"Could not run the reconciliation on {BACKEND}.")
+    st.code(str(exc))
     st.stop()
 
 # --------------------------------------------------------------------------
@@ -123,7 +144,22 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-    st.caption("Backend: SQLite (local)")
+    st.divider()
+    st.subheader("Backend")
+    # Shown, not hidden: anyone reading a break report needs to know whether
+    # they are looking at a local sample or the live warehouse before they act
+    # on it, and which SQL file produced each number.
+    if BACKEND == "Snowflake":
+        st.success("Snowflake (live)")
+    else:
+        st.info("SQLite (local)")
+    st.caption("Set USE_SNOWFLAKE=true to run against Snowflake.")
+    with st.expander("SQL in use"):
+        for stem in ("01_gl_vs_subledger", "02_gl_vs_regulatory_extract",
+                     "03_quarterly_break_trend"):
+            st.caption(
+                f"`{resolve_query_path(stem).relative_to(Path(__file__).resolve().parents[1])}`"
+            )
 
 
 def apply_filters(frame: pd.DataFrame) -> pd.DataFrame:
