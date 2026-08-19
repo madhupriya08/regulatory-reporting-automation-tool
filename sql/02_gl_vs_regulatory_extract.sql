@@ -114,7 +114,7 @@ full_outer AS (
     WHERE gl.entity IS NULL
 ),
 
-variance AS (
+variance_calc AS (
     SELECT
         entity,
         product,
@@ -132,7 +132,14 @@ variance AS (
 
 flagged AS (
     SELECT
-        variance.*,
+        entity,
+        product,
+        quarter,
+        missing_from_gl,
+        missing_from_extract,
+        gl_balance,
+        extract_balance,
+        variance,
         ROUND(100.0 * variance / NULLIF(gl_balance, 0), 4) AS variance_pct,
         CASE
             -- A one-sided row is a break regardless of magnitude: there is no
@@ -142,7 +149,7 @@ flagged AS (
             WHEN ABS(100.0 * variance / NULLIF(gl_balance, 0)) > 0.5 THEN 'BREAK'
             ELSE 'PASS'
         END AS status
-    FROM variance
+    FROM variance_calc
 ),
 
 offset_search AS (
