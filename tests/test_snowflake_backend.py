@@ -64,6 +64,10 @@ def test_missing_env_vars_names_every_missing_variable(monkeypatch):
     """
     for name in REQUIRED_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    # Clear the key-pair variable too: leaving it set would switch the auth
+    # mode, and this test would then be asserting about a different required
+    # set than the one it names.
+    monkeypatch.delenv("SNOWFLAKE_PRIVATE_KEY_FILE", raising=False)
 
     assert missing_env_vars() == list(REQUIRED_ENV_VARS)
 
@@ -85,6 +89,7 @@ def test_blank_env_var_counts_as_missing(monkeypatch):
     """
     for name in REQUIRED_ENV_VARS:
         monkeypatch.setenv(name, "placeholder")
+    monkeypatch.delenv("SNOWFLAKE_PRIVATE_KEY_FILE", raising=False)
     monkeypatch.setenv("SNOWFLAKE_WAREHOUSE", "   ")
 
     assert missing_env_vars() == ["SNOWFLAKE_WAREHOUSE"]
@@ -99,6 +104,7 @@ def test_config_summary_never_echoes_the_password(monkeypatch):
     """
     for name in REQUIRED_ENV_VARS:
         monkeypatch.setenv(name, f"value-for-{name}")
+    monkeypatch.delenv("SNOWFLAKE_PRIVATE_KEY_FILE", raising=False)
     monkeypatch.setenv("SNOWFLAKE_PASSWORD", "hunter2-do-not-print")
 
     summary = describe_config()
@@ -115,6 +121,7 @@ def test_optional_role_is_not_required(monkeypatch):
         monkeypatch.setenv(name, "x")
     for name in OPTIONAL_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("SNOWFLAKE_PRIVATE_KEY_FILE", raising=False)
 
     assert missing_env_vars() == []
     check_env()  # must not raise
