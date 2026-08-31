@@ -85,6 +85,7 @@ QUERY_STEMS = (
     "01_gl_vs_subledger",
     "02_gl_vs_regulatory_extract",
     "03_quarterly_break_trend",
+    "04_break_analytics",
 )
 
 

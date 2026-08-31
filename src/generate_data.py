@@ -119,10 +119,17 @@ EXTRACT_RUN_DATE = {"2025Q1": "2025-04-08", "2025Q2": "2025-07-09"}
 # with the GL.
 LATE_FEED_BREAKS = [
     # (entity, product, quarter, approximate shortfall as a fraction of GL)
-    ("US Retail Bank",         "Mortgage",            "2025Q1", 0.024),
-    ("US Card Services",       "Credit Card",         "2025Q2", 0.031),
-    ("US Small Business Bank", "Small Business Loan", "2025Q1", 0.018),
-    ("US Wealth Mgmt",         "HELOC",               "2025Q2", 0.042),
+    ("US Retail Bank",   "Mortgage",    "2025Q1", 0.024),
+    ("US Card Services", "Credit Card", "2025Q2", 0.031),
+    # These two are the SAME account in consecutive quarters, and that is
+    # deliberate. A feed that misses the cutoff once is an incident; the same
+    # feed missing it two quarters running is a broken process, and those are
+    # different conversations with different owners. sql/04 detects the
+    # difference with a window function partitioned by entity and product -
+    # without a genuinely recurring break in the data, that column could never
+    # fire and the analytics would be untestable decoration.
+    ("US Wealth Mgmt",   "HELOC",       "2025Q1", 0.018),
+    ("US Wealth Mgmt",   "HELOC",       "2025Q2", 0.042),
 ]
 
 DUPLICATE_LOAD_BREAKS = [

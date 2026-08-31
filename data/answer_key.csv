@@ -3,13 +3,13 @@ BRK-007,US Private Bank,Personal Loan,2025Q1,duplicate_load,gl_vs_subledger,over
 BRK-011,US Retail Bank,HELOC,2025Q1,mapping_error,gl_vs_regulatory_extract,under,MAPPING_ERROR,-214355.08,-2.6,loans mis-tagged out of HELOC into Personal Loan (source side of the pair)
 BRK-001,US Retail Bank,Mortgage,2025Q1,late_feed,gl_vs_subledger,under,LATE_FEED,-1138184.59,-2.9972,2 loans missed the load cutoff and never reached the sub-ledger
 BRK-011,US Retail Bank,Personal Loan,2025Q1,mapping_error,gl_vs_regulatory_extract,over,MAPPING_ERROR,214355.08,13.9364,loans mis-tagged into Personal Loan out of HELOC (target side of the pair)
-BRK-006,US Small Business Bank,Small Business Loan,2025Q1,late_feed,gl_vs_subledger,under,LATE_FEED,-87858.72,-2.2031,1 loans missed the load cutoff and never reached the sub-ledger
+BRK-003,US Wealth Mgmt,HELOC,2025Q1,late_feed,gl_vs_subledger,under,LATE_FEED,-118745.23,-2.9187,3 loans missed the load cutoff and never reached the sub-ledger
 BRK-008,US Wealth Mgmt,Mortgage,2025Q1,timing_difference,gl_vs_regulatory_extract,under,TIMING_DIFFERENCE,-563225.81,-2.2,GL adjustment posted after the 2025-04-08 extract run; no offsetting entry elsewhere
 BRK-012,US Card Services,Auto Loan,2025Q2,mapping_error,gl_vs_regulatory_extract,under,MAPPING_ERROR,-110999.81,-3.9,loans mis-tagged out of Auto Loan into Small Business Loan (source side of the pair)
-BRK-004,US Card Services,Credit Card,2025Q2,late_feed,gl_vs_subledger,under,LATE_FEED,-22329.47,-3.1822,5 loans missed the load cutoff and never reached the sub-ledger
-BRK-005,US Card Services,Personal Loan,2025Q2,duplicate_load,gl_vs_subledger,over,DUPLICATE_LOAD,62074.72,4.5989,batch replayed: 5 loans double-counted
+BRK-005,US Card Services,Credit Card,2025Q2,late_feed,gl_vs_subledger,under,LATE_FEED,-22329.47,-3.1822,5 loans missed the load cutoff and never reached the sub-ledger
+BRK-006,US Card Services,Personal Loan,2025Q2,duplicate_load,gl_vs_subledger,over,DUPLICATE_LOAD,62074.72,4.5989,batch replayed: 5 loans double-counted
 BRK-012,US Card Services,Small Business Loan,2025Q2,mapping_error,gl_vs_regulatory_extract,over,MAPPING_ERROR,110999.81,1.2015,loans mis-tagged into Small Business Loan out of Auto Loan (target side of the pair)
 BRK-010,US Private Bank,Mortgage,2025Q2,timing_difference,gl_vs_regulatory_extract,under,TIMING_DIFFERENCE,-1133279.24,-3.3,GL adjustment posted after the 2025-07-09 extract run; no offsetting entry elsewhere
 BRK-002,US Retail Bank,Auto Loan,2025Q2,duplicate_load,gl_vs_subledger,over,DUPLICATE_LOAD,90994.76,3.1773,batch replayed: 1 loans double-counted
 BRK-009,US Small Business Bank,Auto Loan,2025Q2,timing_difference,gl_vs_regulatory_extract,under,TIMING_DIFFERENCE,-20320.29,-1.4,GL adjustment posted after the 2025-07-09 extract run; no offsetting entry elsewhere
-BRK-003,US Wealth Mgmt,HELOC,2025Q2,late_feed,gl_vs_subledger,under,LATE_FEED,-269283.74,-6.3826,2 loans missed the load cutoff and never reached the sub-ledger
+BRK-004,US Wealth Mgmt,HELOC,2025Q2,late_feed,gl_vs_subledger,under,LATE_FEED,-269283.74,-6.3826,2 loans missed the load cutoff and never reached the sub-ledger

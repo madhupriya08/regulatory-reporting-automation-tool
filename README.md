@@ -68,6 +68,7 @@ determines who fixes it and how.
 | 1 | `sql/01_gl_vs_subledger.sql` | `late_feed`, `duplicate_load` | Variance **direction**. Under the GL means detail is missing; over means detail is doubled. |
 | 2 | `sql/02_gl_vs_regulatory_extract.sql` | `timing_difference`, `mapping_error` | Whether an **equal and opposite** variance exists elsewhere in the same entity and quarter. |
 | 3 | `sql/03_quarterly_break_trend.sql` | — | Aggregates both of the above per quarter. |
+| 4 | `sql/04_break_analytics.sql` | — | Ranks every break against its peers using window functions: materiality rank, Pareto cut-off, recurrence, and quarter-over-quarter direction. |
 
 **The four failure modes**
 
@@ -429,7 +430,7 @@ two materiality rules, eventually.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q          # 60 passed, 5 skipped without Snowflake
+python -m pytest tests/ -q          # 80 passed, 5 skipped without Snowflake
 ```
 
 The distinction the suite exists to enforce: **"the query ran" is not the same
@@ -468,6 +469,100 @@ than restating it inline, so it tracks `sql/02` instead of a copy that can drift
 The live Snowflake tests **skip** rather than fail without credentials. A
 developer without warehouse access should still get a green suite for the path
 they can run; a red suite everyone learns to ignore protects nothing.
+
+---
+
+## Break analytics: what window functions add
+
+Queries 1 and 2 answer *which accounts broke*. Query 3 answers *how the quarter
+went*. Neither answers the question a controller actually has on Monday:
+
+> There are 14 breaks and time to clear four before the deadline. **Which four?**
+
+Answering that requires each break to be compared against its peers — and
+comparison across rows while keeping every row visible is precisely what a
+window function does and `GROUP BY` cannot.
+
+| Window | Question it settles |
+|---|---|
+| `RANK() OVER (PARTITION BY quarter ORDER BY break_amount DESC)` | Where does this break sit against the others this quarter? |
+| `SUM(...) OVER (PARTITION BY quarter)` | What share of the quarter's exposure is this one break? |
+| `SUM(...) OVER (... ROWS UNBOUNDED PRECEDING)` | Pareto: how far down the list to cover 80% of the money? |
+| `COUNT(*) OVER (PARTITION BY entity, product, reconciliation)` | Has this account broken before? |
+| `LAG(variance) OVER (... ORDER BY quarter)` | Is a recurring break getting better or worse? |
+
+On the current data that produces a sharp answer: **3 of 14 breaks cover 84% of
+Q1 exposure and 83% of Q2**. One account — US Wealth Mgmt HELOC — breaks in
+both quarters and is flagged `RECURRING` / `WORSENING`, because a feed that
+misses the cutoff twice is a broken process rather than an incident, and those
+go to different owners.
+
+Two details in that query are worth more than they look:
+
+**The Pareto cut-off includes the row that crosses 80%.** Filtering on
+`cumulative <= 80` reads naturally and is wrong — it drops the very row that
+carries the total past the line, so a bucket labelled "top 80%" reliably sums
+to less. The query subtracts each row's own share before comparing, and
+`test_priority_one_really_does_cover_eighty_percent` asserts both that the
+bucket reaches 80% and that it is the *smallest* set that does.
+
+**The running total is ordered deterministically.** A mapping error produces
+two breaks of exactly equal magnitude. With `ORDER BY break_amount` alone the
+engine may place tied rows in either order, so each would receive a different
+cumulative share from run to run — and, worse, differently on SQLite than on
+Snowflake. A regulatory figure that changes depending on which engine printed
+it is not a figure. Explicit tie-breakers make it stable; `RANK` deliberately
+keeps the un-tie-broken ordering, because two equal breaks genuinely are
+equally urgent and inventing an order between them would state something
+untrue.
+
+---
+
+## Audit trail and data lineage
+
+A reconciliation result is only as defensible as its provenance. Every run
+appends to two tables that are created `IF NOT EXISTS` and **never dropped**,
+so history survives the rebuild that drops and recreates the source tables:
+
+| Recorded | Why |
+|---|---|
+| `run_id`, `run_timestamp_utc` | identifies the run; UTC so "when" is unambiguous |
+| `code_version` | git SHA, suffixed `-dirty` when the tree had uncommitted changes |
+| `materiality_threshold_pct` | the threshold actually applied, not the one in today's config |
+| `detail_json` | rows loaded, queries run, breaks found |
+| `sha256` per input file | proves the exact **bytes** read — a filename proves nothing once a file has been regenerated |
+
+Nothing in the codebase issues `UPDATE`, `DELETE`, `DROP` or `TRUNCATE`
+against those tables, and that is enforced by a test that scans the source
+rather than trusting the intention — because the first record anyone would want
+to edit is the one for the run that went wrong.
+
+Field-level lineage for every published figure is in
+**[`docs/DATA_LINEAGE.md`](docs/DATA_LINEAGE.md)**.
+
+**Limitation:** the trail lives in the same SQLite file as the data it
+describes, so deleting that file deletes the history. Fine for local
+development, not for production — see the scope note.
+
+---
+
+## Regulatory framing: BCBS 239
+
+**[`docs/GOVERNANCE.md`](docs/GOVERNANCE.md)** maps this tool against the 14
+principles of BCBS 239 (*Principles for effective risk data aggregation and
+risk reporting*), the standard behind most CCAR / FR Y-14Q control frameworks.
+
+The honest score is **4 demonstrated, 7 partial, 3 not addressed**. The
+strengths are the data-aggregation principles — Accuracy and Integrity (3),
+Completeness (4), Timeliness (5) — plus reporting Accuracy (7) and Clarity (9),
+which is unsurprising since those are what a reconciliation engine is *for*.
+The gaps are Governance (1), Distribution (11) and the workflow half of
+Remedial actions (13); those need an organisation and an access model around
+the tool, not more code inside it.
+
+The ✗ rows in that document matter as much as the ✓ rows. A personal project
+cannot satisfy a firm-wide governance standard, and claiming otherwise
+collapses under one follow-up question.
 
 ---
 
@@ -526,6 +621,7 @@ sql/
   01_gl_vs_subledger.sql        portable: runs on both engines
   02_gl_vs_regulatory_extract.sql   SQLite dialect (simulated FULL OUTER JOIN)
   03_quarterly_break_trend.sql  portable: runs on both engines
+  04_break_analytics.sql        portable: window-function break ranking
   snowflake/
     02_gl_vs_regulatory_extract_snowflake.sql   native FULL OUTER JOIN
 
@@ -542,11 +638,18 @@ src/
   run_queries_snowflake.py      Snowflake runner
   dashboard.py                  Streamlit break report (either backend)
   show_schema.py                read-only schema dump for the local database
+  audit_log.py                  append-only run trail + input fingerprinting
+
+docs/
+  DATA_LINEAGE.md               field-level source-to-target lineage
+  GOVERNANCE.md                 BCBS 239 principle-by-principle mapping
 
 tests/
   conftest.py                   fixtures: fresh DB built from committed CSVs
   test_data_integrity.py        load boundary, answer-key validity, reproducibility
   test_reconciliation.py        grades the SQL against the answer key
+  test_break_analytics.py       window-function correctness and determinism
+  test_audit_trail.py           append-only guarantees, enforced against source
   test_snowflake_backend.py     Snowflake backend (live tests skip without creds)
 ```
 

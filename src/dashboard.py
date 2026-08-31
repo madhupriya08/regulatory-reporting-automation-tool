@@ -108,6 +108,7 @@ try:
     subledger = run_recon("01_gl_vs_subledger", BACKEND)
     extract = run_recon("02_gl_vs_regulatory_extract", BACKEND)
     trend = run_recon("03_quarterly_break_trend", BACKEND)
+    analytics = run_recon("04_break_analytics", BACKEND)
 except FileNotFoundError as exc:
     st.error(str(exc))
     st.stop()
@@ -171,6 +172,7 @@ def apply_filters(frame: pd.DataFrame) -> pd.DataFrame:
 sub_f = apply_filters(subledger)
 ext_f = apply_filters(extract)
 trend_f = trend[trend["quarter"].isin(sel_quarters)]
+analytics_f = apply_filters(analytics)
 
 if sub_f.empty and ext_f.empty:
     st.warning("No accounts match the current filters.")
@@ -208,6 +210,88 @@ k5.metric("Largest single break", money(
         [abs(v) for v in ext_breaks["variance"]] + [0]
     )
 ))
+
+st.divider()
+
+# --------------------------------------------------------------------------
+# Remediation work queue (window-function analytics, sql/04)
+# --------------------------------------------------------------------------
+st.subheader("Remediation work queue")
+st.caption(
+    "Breaks ranked against their peers within each quarter. The question this "
+    "answers is not \u201cwhat broke\u201d but \u201cthere is time to clear four of "
+    "these before the deadline \u2014 which four?\u201d"
+)
+
+if analytics_f.empty:
+    st.success("No breaks to triage for the current filters.")
+else:
+    priority = analytics_f[
+        analytics_f["remediation_priority"] == "PRIORITY_1_TOP_80PCT"
+    ]
+    recurring = analytics_f[analytics_f["break_persistence"] == "RECURRING"]
+    worsening = analytics_f[analytics_f["trend_vs_prior_quarter"] == "WORSENING"]
+
+    a1, a2, a3 = st.columns(3)
+    a1.metric(
+        "Clear these first",
+        f"{len(priority)} of {len(analytics_f)}",
+        help="The smallest set of breaks covering 80% of the exposure. Each "
+             "quarter's Pareto cut-off, computed with a running total.",
+    )
+    a2.metric(
+        "Recurring accounts",
+        f"{len(recurring)}",
+        help="Broken in more than one quarter. A process failure rather than "
+             "an incident, and a different owner.",
+    )
+    a3.metric(
+        "Worsening",
+        f"{len(worsening)}",
+        delta=f"{len(worsening)} getting bigger" if len(worsening) else None,
+        delta_color="inverse",
+        help="Recurring breaks whose absolute variance grew since last "
+             "quarter - remediation that is not working.",
+    )
+
+    c1, c2 = st.columns([1, 1])
+
+    # Pareto: bars are individual breaks, the line is the running total. The
+    # chart's job is to show where the 80% line falls, so it is drawn in.
+    pareto = analytics_f.sort_values(
+        ["quarter", "cumulative_pct_of_exposure"]
+    ).copy()
+    pareto["label"] = pareto["entity"] + " / " + pareto["product"]
+
+    fig = px.bar(
+        pareto, x="label", y="break_amount", color="quarter",
+        title="Break exposure, ranked (Pareto)",
+        color_discrete_sequence=["#dc2626", "#2563eb"],
+    )
+    fig.update_layout(xaxis_title="", yaxis_title="Break amount ($)",
+                      legend_title="", height=380, xaxis_tickangle=-40)
+    c1.plotly_chart(fig, width="stretch")
+
+    fig = px.line(
+        pareto, x="label", y="cumulative_pct_of_exposure", color="quarter",
+        markers=True, title="Cumulative % of quarterly exposure",
+        color_discrete_sequence=["#dc2626", "#2563eb"],
+    )
+    fig.add_hline(y=80, line_dash="dot", line_color="#64748b",
+                  annotation_text="80% of exposure")
+    fig.update_layout(xaxis_title="", yaxis_title="Cumulative (%)",
+                      legend_title="", height=380, xaxis_tickangle=-40)
+    c2.plotly_chart(fig, width="stretch")
+
+    st.dataframe(
+        analytics_f.sort_values(["quarter", "materiality_rank"])[[
+            "quarter", "entity", "product", "reconciliation", "root_cause",
+            "break_amount", "materiality_rank", "pct_of_quarter_exposure",
+            "cumulative_pct_of_exposure", "break_persistence",
+            "trend_vs_prior_quarter", "remediation_priority",
+        ]].reset_index(drop=True),
+        width="stretch", hide_index=True,
+    )
 
 st.divider()
 
@@ -338,3 +422,61 @@ st.dataframe(
     (ext_breaks if breaks_only_ext else ext_f).reset_index(drop=True),
     width='stretch', hide_index=True,
 )
+
+st.divider()
+
+# --------------------------------------------------------------------------
+# Audit trail
+# --------------------------------------------------------------------------
+st.subheader("Audit trail")
+st.caption(
+    "Every build and reconciliation run, with the code version and the SHA-256 "
+    "of each input file. This is what turns the report above from an assertion "
+    "into evidence: months from now it can still answer which code read which "
+    "bytes to produce these numbers."
+)
+
+# SQLite-only: the trail is written by the local pipeline. A live Snowflake run
+# reads tables built by src/build_snowflake.py, which does not write this log -
+# so claiming to show its provenance here would be showing the wrong run's.
+if BACKEND == "Snowflake":
+    st.info(
+        "The audit trail is recorded by the local SQLite pipeline. Switch to "
+        "the SQLite backend to review run history."
+    )
+else:
+    try:
+        import sqlite3
+
+        from config import SQLITE_DB_PATH
+        from src.audit_log import run_history
+
+        with sqlite3.connect(SQLITE_DB_PATH) as audit_conn:
+            history = [dict(row) for row in run_history(audit_conn, limit=15)]
+
+        if not history:
+            st.info("No runs recorded yet.")
+        else:
+            st.dataframe(
+                pd.DataFrame(history)[[
+                    "run_timestamp_utc", "stage", "backend", "code_version",
+                    "materiality_threshold_pct", "detail_json",
+                ]],
+                width="stretch", hide_index=True,
+            )
+
+            latest = history[0]["run_id"]
+            with sqlite3.connect(SQLITE_DB_PATH) as audit_conn:
+                fingerprints = pd.read_sql_query(
+                    "SELECT file_name, sha256, byte_size, row_count "
+                    "FROM audit_input_file WHERE run_id = ?",
+                    audit_conn, params=(latest,),
+                )
+            with st.expander("Input fingerprints for the most recent run"):
+                st.dataframe(fingerprints, width="stretch", hide_index=True)
+    except Exception as exc:  # noqa: BLE001
+        # A missing or unreadable trail must not take the break report down
+        # with it. The reconciliation numbers above are still valid; only their
+        # provenance display is unavailable, and saying so is more useful than
+        # a blank page.
+        st.warning(f"Audit trail unavailable: {exc}")

@@ -23,6 +23,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import SQLITE_DB_PATH, TABLE_SOURCES  # noqa: E402
+from src.audit_log import record_run  # noqa: E402
 
 # Columns are typed explicitly rather than letting pandas.to_sql infer them.
 # Inference is per-run and depends on the data it happens to see; an explicit
@@ -77,8 +78,11 @@ INDEXES = [
 ]
 
 
-def build(db_path: Path = SQLITE_DB_PATH) -> dict[str, int]:
-    """Rebuild the SQLite database from the CSVs. Returns rows loaded per table."""
+def build(db_path: Path = SQLITE_DB_PATH) -> tuple[dict[str, int], str]:
+    """Rebuild the SQLite database from the CSVs.
+
+    Returns (rows loaded per table, audit run_id).
+    """
     missing = [str(p) for p in TABLE_SOURCES.values() if not p.exists()]
     if missing:
         raise FileNotFoundError(
@@ -116,15 +120,31 @@ def build(db_path: Path = SQLITE_DB_PATH) -> dict[str, int]:
 
         conn.commit()
 
-    return loaded
+        # Append the load to the audit trail. Note this happens AFTER the
+        # row-count reconciliation above: a run that failed verification raises
+        # before reaching here, so the trail never records a load that did not
+        # actually reconcile. Recording first and correcting later would be
+        # exactly the editable-history problem the trail exists to prevent.
+        #
+        # The three source tables were dropped and recreated above; the audit
+        # tables deliberately were not, so history survives a rebuild.
+        run_id = record_run(
+            conn,
+            stage="build_database",
+            backend="sqlite",
+            detail={"rows_loaded": loaded},
+        )
+
+    return loaded, run_id
 
 
 def main() -> None:
-    loaded = build()
+    loaded, run_id = build()
     print(f"Built SQLite database: {SQLITE_DB_PATH}")
     for table, count in loaded.items():
         print(f"  {table:<22} {count:>7,} rows")
     print("Row counts reconcile against the source CSVs exactly.")
+    print(f"Audit run_id: {run_id}")
 
 
 if __name__ == "__main__":

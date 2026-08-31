@@ -33,6 +33,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import OUTPUT_DIR, SNOWFLAKE_SQL_DIR, SQL_DIR, SQLITE_DB_PATH  # noqa: E402
+from src.audit_log import record_run  # noqa: E402
 
 
 def _sqlite_query_files() -> list[Path]:
@@ -73,6 +74,24 @@ def run_all(db_path: Path = SQLITE_DB_PATH, output_dir: Path = OUTPUT_DIR
             frame = pd.read_sql_query(sql_path.read_text(), conn)
             frame.to_csv(output_dir / f"{sql_path.stem}.csv", index=False)
             results[sql_path.stem] = frame
+
+        # What this run concluded, recorded against the code version and the
+        # input hashes that produced it. A break count on its own is a claim;
+        # a break count tied to a commit and a set of SHA-256 digests is
+        # something an examiner can re-derive.
+        record_run(
+            conn,
+            stage="run_queries",
+            backend="sqlite",
+            detail={
+                "queries_run": sorted(results),
+                "breaks_by_query": {
+                    name: int((frame["status"] == "BREAK").sum())
+                    for name, frame in results.items()
+                    if "status" in frame.columns
+                },
+            },
+        )
 
     return results
 
