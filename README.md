@@ -286,6 +286,7 @@ export SNOWFLAKE_ACCOUNT=...      SNOWFLAKE_USER=...
 export SNOWFLAKE_PASSWORD=...     SNOWFLAKE_WAREHOUSE=...
 export SNOWFLAKE_DATABASE=...     SNOWFLAKE_SCHEMA=...
 export SNOWFLAKE_ROLE=...         # optional
+# ...or authenticate with a key pair instead of a password - see below
 
 python src/build_snowflake.py
 python src/run_queries_snowflake.py
@@ -296,14 +297,72 @@ USE_SNOWFLAKE=true streamlit run src/dashboard.py
 backend — every query goes through `src/backends.py`, which resolves the right
 SQL file and normalises the result.
 
+### Authentication: password or key pair
+
+Password auth is the default because it is the shortest path to a first run. It
+is also the mode most likely to stop working — Snowflake has been phasing out
+password-only sign-in for human users in favour of enforced MFA, and **a
+scheduled reconciliation job cannot answer an MFA prompt at 3am.**
+
+So key-pair auth is supported, and it is the right answer for anything
+automated. Setting `SNOWFLAKE_PRIVATE_KEY_FILE` switches modes;
+`SNOWFLAKE_PASSWORD` is then neither required nor read.
+
+```bash
+# 1 · Generate a key pair (encrypted; omit -v2 ... -nocrypt for unencrypted)
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8
+chmod 600 rsa_key.p8
+openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
+
+# 2 · Register the PUBLIC half with your Snowflake user (strip header/footer
+#     and newlines from rsa_key.pub first)
+#     ALTER USER my_user SET RSA_PUBLIC_KEY='MIIBIjANBg...';
+
+# 3 · Point the tool at the PRIVATE half
+export SNOWFLAKE_PRIVATE_KEY_FILE=~/rsa_key.p8
+export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE='...'   # only if the key is encrypted
+# SNOWFLAKE_PASSWORD is not needed and is not read
+```
+
+The mode is inferred from which variables are set rather than from a separate
+`SNOWFLAKE_AUTH_MODE` flag, because a flag that disagrees with the variables
+actually present is one more thing to get wrong at 3am.
+
+**Why the key is parsed here instead of handed to the driver as a path.** The
+connector accepts a file path directly, and using it would have been less code.
+But then every failure — encrypted key with no passphrase, wrong passphrase,
+public key by mistake — arrives as one generic authentication error, and the
+operator goes looking for the fault in Snowflake when it is on their own disk.
+Parsing the key first means each of those gets a message naming the actual
+problem:
+
+| Mistake | What you get |
+|---|---|
+| Key is encrypted, no passphrase set | names `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE` and the export line |
+| Wrong passphrase | lists the three likely causes |
+| Pointed at `rsa_key.pub` | *"the file is a PUBLIC key, not a private one"* |
+| Path does not exist | prints the resolved path, `~` expanded |
+| Key is world-readable | **warns** with the `chmod 600`, then proceeds |
+
+That last row is deliberate. A world-readable private key is a real finding,
+but refusing to run would push people toward workarounds worse than the
+warning. It warns and continues, and stays silent on a correctly-permissioned
+key so the warning does not become noise everyone learns to ignore.
+
+Nothing prints key material or the passphrase, in either mode — verified by
+tests, including one that fails if base64 key bytes appear in the config
+summary.
+
 Anything other than `1/true/yes/y/on` selects SQLite. The default is
 deliberately the local backend: a mistyped variable should never silently point
 a run at a live warehouse.
 
 **Credentials are read from environment variables and nowhere else.** No config
 file, no keyring, no prompt, no defaults. If any are missing you get a message
-naming exactly which ones, with the `export` lines to fix them — not a
-connector stack trace. Nothing ever logs or echoes a credential value.
+naming exactly which ones — and which auth mode is active, so someone who set a
+key file does not see `SNOWFLAKE_PASSWORD` absent from the list and wonder
+whether the tool noticed their key at all. Never a connector stack trace.
+Nothing ever logs or echoes a credential value.
 
 ### What is actually different
 
@@ -430,7 +489,7 @@ two materiality rules, eventually.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q          # 80 passed, 5 skipped without Snowflake
+python -m pytest tests/ -q          # 100 passed, 5 skipped without Snowflake
 ```
 
 The distinction the suite exists to enforce: **"the query ran" is not the same
@@ -452,6 +511,7 @@ separately, because those mean opposite things to whoever has to fix them.
 | Reproducibility | Regenerating in a subprocess under a different `PYTHONHASHSEED` yields byte-identical CSVs |
 | Snowflake (offline) | Credential handling, backend selection, file resolution, casing, dialect equivalence |
 | Snowflake CLI | A missing variable exits 1 with the full list and **no traceback**; a bogus password never reaches stdout or stderr |
+| Key-pair auth | Mode selection, per-mode requirements, and every key-loading failure path — encrypted-without-passphrase, wrong passphrase, public key, missing file, loose permissions — each producing an error that names the real fault |
 | Snowflake (live) | Real row counts, lowercase columns, and the same 14 breaks on the warehouse |
 
 The suite was itself checked by **mutation testing**: flipping the
@@ -632,7 +692,8 @@ src/
   generate_data.py              3 source systems + answer key
   build_database.py             SQLite loader (with indexes)
   build_snowflake.py            Snowflake loader (no indexes, NUMBER(18,2))
-  snowflake_conn.py             env-var credentials, clear errors, no echoing
+  snowflake_conn.py             env-var credentials (password or key pair),
+                                clear errors, no echoing
   backends.py                   backend selection, SQL resolution, casing
   run_queries.py                SQLite runner
   run_queries_snowflake.py      Snowflake runner
@@ -650,6 +711,7 @@ tests/
   test_reconciliation.py        grades the SQL against the answer key
   test_break_analytics.py       window-function correctness and determinism
   test_audit_trail.py           append-only guarantees, enforced against source
+  test_snowflake_keypair.py     key-pair auth: mode selection and key loading
   test_snowflake_backend.py     Snowflake backend (live tests skip without creds)
 ```
 
