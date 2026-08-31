@@ -29,7 +29,7 @@ from src.build_database import build  # noqa: E402
 def db_path(tmp_path_factory) -> Path:
     """A SQLite database built from the committed CSVs, once per session."""
     path = tmp_path_factory.mktemp("recon") / "test_regulatory_reporting.db"
-    build(path)
+    build(path)  # returns (rows_loaded, run_id); the tests only need the path
     return path
 
 
