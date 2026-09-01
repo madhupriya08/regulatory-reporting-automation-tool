@@ -67,6 +67,57 @@ REQUIRED_ENV_VARS = COMMON_ENV_VARS + (PASSWORD_ENV_VAR,)
 OPTIONAL_ENV_VARS = ("SNOWFLAKE_ROLE", PRIVATE_KEY_PASSPHRASE_ENV_VAR)
 
 
+def _is_windows() -> bool:
+    """Whether to emit Windows shell syntax.
+
+    A one-line indirection so tests can exercise both platforms' messages from
+    either platform. Patching os.name directly would work for the string
+    formatting and then break pathlib, which chooses its Path flavour from that
+    same attribute - so a test for a Windows error message would fail while
+    constructing a Path, for reasons having nothing to do with the message.
+    """
+    return os.name == "nt"
+
+
+def set_env_instructions(names: tuple[str, ...] | list[str]) -> str:
+    """Instructions for setting environment variables, in the caller's shell.
+
+    This exists because the first version printed `export NAME=...` to
+    everyone, including Windows users, where that command simply does not
+    exist. An error message whose remedy cannot be typed is not a helpful error
+    message - it is a second error, and it arrives at exactly the moment
+    someone is already stuck.
+
+    On Windows both PowerShell and cmd.exe forms are shown rather than guessing
+    between them. PSModulePath is the usual PowerShell signal but survives into
+    a cmd.exe launched from PowerShell, so a guess would be wrong precisely in
+    the confusing case. Two extra lines is cheaper than being confidently
+    wrong.
+
+    The note about scope is not padding either: on Windows these assignments
+    last only for the current terminal, and "I set it and it still says
+    missing" is the predictable next question.
+    """
+    if _is_windows():
+        powershell = "".join(f'  $env:{name}="..."\n' for name in names)
+        cmd = "".join(f"  set {name}=...\n" for name in names)
+        return (
+            "Set them in PowerShell and re-run, for example:\n"
+            + powershell
+            + "\nOr in cmd.exe:\n"
+            + cmd
+            + "\nThese last only for the current terminal window. To persist "
+              "them, use\nWindows Settings > Environment Variables, or "
+              "[Environment]::SetEnvironmentVariable().\n"
+        )
+
+    return (
+        "Set them in your shell and re-run, for example:\n"
+        + "".join(f"  export {name}=...\n" for name in names)
+        + "\nThese last only for the current shell session.\n"
+    )
+
+
 def auth_mode() -> str:
     """Which authentication mode the current environment selects.
 
@@ -173,9 +224,9 @@ def load_private_key() -> bytes:
             raise SnowflakeConfigError(
                 f"The private key at {path} is encrypted, but "
                 f"{PRIVATE_KEY_PASSPHRASE_ENV_VAR} is not set.\n\n"
-                f"  export {PRIVATE_KEY_PASSPHRASE_ENV_VAR}=...\n\n"
-                "Or generate an unencrypted key if this is a service account "
-                "whose key file is already protected at rest."
+                + set_env_instructions([PRIVATE_KEY_PASSPHRASE_ENV_VAR])
+                + "\nOr generate an unencrypted key if this is a service "
+                "account whose key file is already protected at rest."
             ) from exc
         raise SnowflakeConfigError(
             f"The private key at {path} is not encrypted, but "
@@ -243,7 +294,8 @@ def check_env() -> None:
     raw connector traceback for a problem that is entirely on their side of the
     boundary. A stack trace ending in `250001: Could not connect to Snowflake
     backend` tells them nothing about which of six variables they forgot; this
-    tells them precisely, and gives them the export lines to fix it.
+    tells them precisely, and gives them the commands - in their own
+    shell's syntax - to fix it.
     """
     missing = missing_env_vars()
     if not missing:
@@ -270,8 +322,7 @@ def check_env() -> None:
         + mode_note
         + f"\nMissing or blank ({len(missing)} of {len(required)} required):\n"
         + "".join(f"  - {name}\n" for name in missing)
-        + "\nSet them in your shell and re-run, for example:\n"
-        + "".join(f"  export {name}=...\n" for name in missing)
+        + "\n" + set_env_instructions(missing)
         + "\nThese are read from the environment only - never pass a credential "
           "on the command line, paste one into a chat, or write one to a file "
           "in this repository.\n"
