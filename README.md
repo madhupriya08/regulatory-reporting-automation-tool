@@ -280,18 +280,39 @@ choice, not a change to the deliverable.
 python src/build_database.py
 python src/run_queries.py
 streamlit run src/dashboard.py
+```
 
-# Snowflake
+**Snowflake — macOS / Linux:**
+
+```bash
 export SNOWFLAKE_ACCOUNT=...      SNOWFLAKE_USER=...
 export SNOWFLAKE_PASSWORD=...     SNOWFLAKE_WAREHOUSE=...
 export SNOWFLAKE_DATABASE=...     SNOWFLAKE_SCHEMA=...
 export SNOWFLAKE_ROLE=...         # optional
-# ...or authenticate with a key pair instead of a password - see below
+# ...or authenticate with a key pair instead of a password — see below
 
 python src/build_snowflake.py
 python src/run_queries_snowflake.py
 USE_SNOWFLAKE=true streamlit run src/dashboard.py
 ```
+
+**Snowflake — Windows PowerShell:**
+
+```powershell
+$env:SNOWFLAKE_ACCOUNT="..."     ; $env:SNOWFLAKE_USER="..."
+$env:SNOWFLAKE_PASSWORD="..."    ; $env:SNOWFLAKE_WAREHOUSE="..."
+$env:SNOWFLAKE_DATABASE="..."    ; $env:SNOWFLAKE_SCHEMA="..."
+
+python src/build_snowflake.py
+python src/run_queries_snowflake.py
+
+$env:USE_SNOWFLAKE="true"; streamlit run src/dashboard.py
+```
+
+On Windows these assignments last only for the current terminal window. To
+persist them use Windows Settings → Environment Variables. The error message
+you get when a variable is missing prints the syntax for your own shell — it
+does not tell a PowerShell user to run `export`.
 
 `USE_SNOWFLAKE` is the only switch. The dashboard contains no branch on the
 backend — every query goes through `src/backends.py`, which resolves the right
@@ -489,7 +510,7 @@ two materiality rules, eventually.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q          # 100 passed, 5 skipped without Snowflake
+python -m pytest tests/ -q          # 106 passed, 5 skipped without Snowflake
 ```
 
 The distinction the suite exists to enforce: **"the query ran" is not the same
@@ -512,6 +533,7 @@ separately, because those mean opposite things to whoever has to fix them.
 | Snowflake (offline) | Credential handling, backend selection, file resolution, casing, dialect equivalence |
 | Snowflake CLI | A missing variable exits 1 with the full list and **no traceback**; a bogus password never reaches stdout or stderr |
 | Key-pair auth | Mode selection, per-mode requirements, and every key-loading failure path — encrypted-without-passphrase, wrong passphrase, public key, missing file, loose permissions — each producing an error that names the real fault |
+| Shell hints | The remedy printed on a failure is typable in the operator's own shell — PowerShell and cmd on Windows, `export` on POSIX — asserted on both platforms |
 | Snowflake (live) | Real row counts, lowercase columns, and the same 14 breaks on the warehouse |
 
 The suite was itself checked by **mutation testing**: flipping the

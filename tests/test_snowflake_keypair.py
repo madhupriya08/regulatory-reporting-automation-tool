@@ -37,7 +37,9 @@ from src.snowflake_conn import (  # noqa: E402
     load_private_key,
     missing_env_vars,
     required_env_vars,
+    set_env_instructions,
 )
+from src import snowflake_conn  # noqa: E402
 
 PASSPHRASE = "correct-horse-battery-staple"
 
@@ -304,3 +306,69 @@ def test_config_summary_never_contains_key_material(monkeypatch, keys):
     summary = describe_config()
     assert "BEGIN PRIVATE KEY" not in summary
     assert "MII" not in summary, "base64 key material leaked into the summary"
+
+
+# ===========================================================================
+# The remedy must be typable in the shell the operator is actually using
+# ===========================================================================
+def test_posix_instructions_use_export(monkeypatch):
+    monkeypatch.setattr(snowflake_conn, "_is_windows", lambda: False)
+    text = set_env_instructions(["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER"])
+
+    assert "export SNOWFLAKE_ACCOUNT=..." in text
+    assert "$env:" not in text
+    assert "set SNOWFLAKE_ACCOUNT=" not in text
+
+
+def test_windows_instructions_never_say_export(monkeypatch):
+    """The bug this test exists for: a Windows user was told to run `export`.
+
+    An error message whose remedy cannot be typed is not a helpful error - it
+    is a second error, arriving exactly when someone is already stuck. On
+    Windows the output must be PowerShell and cmd syntax, and `export` must not
+    appear at all.
+    """
+    monkeypatch.setattr(snowflake_conn, "_is_windows", lambda: True)
+    text = set_env_instructions(["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_PASSWORD"])
+
+    assert "export " not in text, "Windows users were told to run a bash builtin"
+    assert '$env:SNOWFLAKE_ACCOUNT="..."' in text
+    assert "set SNOWFLAKE_ACCOUNT=..." in text
+
+
+def test_windows_instructions_warn_that_variables_are_session_scoped(monkeypatch):
+    """"I set it and it still says missing" is the predictable next question."""
+    monkeypatch.setattr(snowflake_conn, "_is_windows", lambda: True)
+    text = set_env_instructions(["SNOWFLAKE_ACCOUNT"])
+    assert "current terminal window" in text
+    assert "Environment Variables" in text
+
+
+@pytest.mark.parametrize("on_windows", [False, True])
+def test_check_env_message_matches_the_platform(monkeypatch, on_windows):
+    """End to end: the real error a user sees, on both platforms."""
+    monkeypatch.setattr(snowflake_conn, "_is_windows", lambda: on_windows)
+
+    with pytest.raises(SnowflakeConfigError) as exc:
+        check_env()
+    message = str(exc.value)
+
+    if on_windows:
+        assert "export " not in message
+        assert "$env:" in message
+    else:
+        assert "export " in message
+        assert "$env:" not in message
+
+
+def test_encrypted_key_message_matches_the_platform(monkeypatch, keys):
+    """The passphrase hint had the same bug as the missing-variable message."""
+    monkeypatch.setenv(PRIVATE_KEY_ENV_VAR, str(keys["encrypted"]))
+    monkeypatch.setattr(snowflake_conn, "_is_windows", lambda: True)
+
+    with pytest.raises(SnowflakeConfigError) as exc:
+        load_private_key()
+    message = str(exc.value)
+
+    assert "export " not in message
+    assert f'$env:{PRIVATE_KEY_PASSPHRASE_ENV_VAR}="..."' in message
