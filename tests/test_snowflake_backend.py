@@ -32,10 +32,27 @@ from src.snowflake_conn import (  # noqa: E402
     OPTIONAL_ENV_VARS,
     REQUIRED_ENV_VARS,
     SnowflakeConfigError,
+    _is_windows,
     check_env,
     describe_config,
     missing_env_vars,
 )
+
+
+def expected_set_syntax() -> str:
+    """The variable-setting syntax this platform's messages should contain.
+
+    Written after these two assertions hardcoded `export` and failed on
+    Windows - on the very release that taught the PRODUCT to stop assuming
+    bash. Fixing the code and leaving the tests asserting the old behaviour is
+    a tidy way to ship the same bug twice.
+
+    Asserting the platform-CORRECT token rather than accepting either one
+    matters: `"export" in msg or "$env:" in msg` would pass on Windows even if
+    the message had regressed to bash, which is precisely the failure being
+    guarded against.
+    """
+    return "$env:" if _is_windows() else "export "
 
 SNOWFLAKE_CONFIGURED = not missing_env_vars()
 requires_snowflake = pytest.mark.skipif(
@@ -77,7 +94,9 @@ def test_missing_env_vars_names_every_missing_variable(monkeypatch):
     message = str(exc.value)
     for name in REQUIRED_ENV_VARS:
         assert name in message, f"{name} missing from the error message"
-    assert "export" in message, "the message should show how to fix it"
+    assert expected_set_syntax() in message, (
+        "the message should show how to fix it, in this platform's shell syntax"
+    )
 
 
 def test_blank_env_var_counts_as_missing(monkeypatch):
@@ -427,7 +446,10 @@ def test_cli_reports_missing_vars_without_a_traceback(script, monkeypatch):
     )
     for name in REQUIRED_ENV_VARS:
         assert name in combined, f"{script} did not name {name}"
-    assert "export" in combined, "the message should show how to fix it"
+    assert expected_set_syntax() in combined, (
+        f"{script} should print how to set the variables in this platform's "
+        f"shell syntax"
+    )
 
 
 @pytest.mark.parametrize(
