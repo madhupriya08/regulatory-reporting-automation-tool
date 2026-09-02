@@ -252,9 +252,21 @@ def test_directory_instead_of_file(monkeypatch, tmp_path):
 
 def test_tilde_in_the_path_is_expanded(monkeypatch, keys):
     """~/rsa_key.p8 is how people write this path, and os.environ does not
-    expand it the way a shell would."""
-    monkeypatch.setenv("HOME", str(keys["plain"].parent))
+    expand it the way a shell would.
+
+    Both HOME and USERPROFILE are set, and that is the point of this comment.
+    expanduser() reads HOME on POSIX but USERPROFILE on Windows, so setting
+    only HOME left `~` pointing at the real C:\\Users\\<name> on Windows - the
+    test then failed with "file does not exist" against a path it never
+    intended to use, which looks like a bug in load_private_key() and is not.
+    Reported from a real Windows run; the third POSIX assumption in this suite
+    to be caught that way.
+    """
+    home = str(keys["plain"].parent)
+    monkeypatch.setenv("HOME", home)          # POSIX
+    monkeypatch.setenv("USERPROFILE", home)   # Windows
     monkeypatch.setenv(PRIVATE_KEY_ENV_VAR, f"~/{keys['plain'].name}")
+
     assert len(load_private_key()) > 100
 
 
